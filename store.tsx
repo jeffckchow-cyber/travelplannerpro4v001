@@ -1,8 +1,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Trip, AppState, Activity, ActivityType, Stay, TransportDetail } from './types';
+import { Trip, AppState, Activity, Stay, TransportDetail } from './types';
 import { auth, db, googleProvider } from './firebase';
-import { onAuthStateChanged, signInWithPopup, signOut, User } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { onAuthStateChanged, signInWithPopup, signOut, User } from "firebase/auth";
 import { 
   doc, 
   setDoc, 
@@ -10,14 +10,14 @@ import {
   onSnapshot, 
   deleteDoc, 
   query 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "firebase/firestore";
 
 interface TripContextType {
   state: AppState;
   user: User | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  addTrip: (trip: Omit<Trip, 'id' | 'dailyItinerary' | 'budget' | 'checklist' | 'status' | 'stays' | 'transports' | 'notes'>) => void;
+  addTrip: (trip: any) => void;
   updateTrip: (tripId: string, updates: Partial<Trip>) => void;
   deleteTrip: (id: string) => void;
   setActiveTrip: (id: string | null) => void;
@@ -63,22 +63,18 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [state, setState] = useState<AppState>({ trips: INITIAL_TRIPS, activeTripId: null });
 
-  // Handle Auth Changes
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       if (!u) {
-        // Fallback to localStorage if no user
         const saved = localStorage.getItem('us_travel_planner_v7');
         if (saved) setState(JSON.parse(saved));
       }
     });
   }, []);
 
-  // Sync with Firestore when logged in
   useEffect(() => {
     if (!user) return;
-
     const q = query(collection(db, `users/${user.uid}/trips`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const tripsData = snapshot.docs.map(doc => doc.data() as Trip);
@@ -87,11 +83,9 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
         trips: tripsData.length > 0 ? tripsData : INITIAL_TRIPS 
       }));
     });
-
     return () => unsubscribe();
   }, [user]);
 
-  // Persist local changes to localStorage as secondary backup
   useEffect(() => {
     if (!user) {
       localStorage.setItem('us_travel_planner_v7', JSON.stringify(state));
@@ -145,7 +139,6 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateTrip = useCallback(async (tripId: string, updates: Partial<Trip>) => {
     const oldTrip = state.trips.find(t => t.id === tripId);
     if (!oldTrip) return;
-
     const newTrip = { ...oldTrip, ...updates };
 
     if (updates.startDate !== undefined || updates.endDate !== undefined) {
@@ -163,7 +156,6 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     }
-
     await syncTrip(newTrip);
   }, [state.trips, user]);
 
