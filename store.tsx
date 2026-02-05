@@ -1,8 +1,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Trip, AppState, Activity, Stay, TransportDetail } from './types';
+import { Trip, AppState, Activity, ActivityType, Stay, TransportDetail } from './types';
 import { auth, db, googleProvider } from './firebase';
-import { onAuthStateChanged, signInWithPopup, signOut, User } from "firebase/auth";
+import { onAuthStateChanged, signInWithPopup, signOut, User } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { 
   doc, 
   setDoc, 
@@ -10,14 +10,14 @@ import {
   onSnapshot, 
   deleteDoc, 
   query 
-} from "firebase/firestore";
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 interface TripContextType {
   state: AppState;
   user: User | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
-  addTrip: (trip: any) => void;
+  addTrip: (trip: Omit<Trip, 'id' | 'dailyItinerary' | 'budget' | 'checklist' | 'status' | 'stays' | 'transports' | 'notes'>) => void;
   updateTrip: (tripId: string, updates: Partial<Trip>) => void;
   deleteTrip: (id: string) => void;
   setActiveTrip: (id: string | null) => void;
@@ -40,19 +40,19 @@ const TripContext = createContext<TripContextType | undefined>(undefined);
 const INITIAL_TRIPS: Trip[] = [
   {
     id: 'preview-trip',
-    title: 'Sample Trip',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 604800000).toISOString().split('T')[0],
+    title: 'US Trip 2026',
+    startDate: '2026-05-19',
+    endDate: '2026-05-26',
     status: 'planning',
     coverImage: 'https://images.unsplash.com/photo-1508433957232-31d15fe4a3ba?auto=format&fit=crop&w=1200&q=80',
     bannerPosition: 50,
     budget: { total: 5000 },
-    notes: 'Welcome! Plan your journey here.',
+    notes: 'Exciting US road trip!',
     stays: [],
     transports: [],
     checklist: [],
-    dailyItinerary: Array.from({ length: 3 }, (_, i) => {
-      const date = new Date();
+    dailyItinerary: Array.from({ length: 8 }, (_, i) => {
+      const date = new Date('2026-05-19');
       date.setDate(date.getDate() + i);
       return { day: i + 1, date: date.toISOString().split('T')[0], activities: [] };
     })
@@ -63,18 +63,22 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [state, setState] = useState<AppState>({ trips: INITIAL_TRIPS, activeTripId: null });
 
+  // Handle Auth Changes
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       if (!u) {
+        // Fallback to localStorage if no user
         const saved = localStorage.getItem('us_travel_planner_v7');
         if (saved) setState(JSON.parse(saved));
       }
     });
   }, []);
 
+  // Sync with Firestore when logged in
   useEffect(() => {
     if (!user) return;
+
     const q = query(collection(db, `users/${user.uid}/trips`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const tripsData = snapshot.docs.map(doc => doc.data() as Trip);
@@ -83,9 +87,11 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
         trips: tripsData.length > 0 ? tripsData : INITIAL_TRIPS 
       }));
     });
+
     return () => unsubscribe();
   }, [user]);
 
+  // Persist local changes to localStorage as secondary backup
   useEffect(() => {
     if (!user) {
       localStorage.setItem('us_travel_planner_v7', JSON.stringify(state));
@@ -119,7 +125,7 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addTrip = useCallback(async (data: any) => {
     const start = new Date(data.startDate);
     const end = new Date(data.endDate);
-    const diffDays = Math.max(1, Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const diffDays = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
     const dailyItinerary = Array.from({ length: diffDays }, (_, i) => {
       const date = new Date(start);
@@ -157,6 +163,7 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     }
+
     await syncTrip(newTrip);
   }, [state.trips, user]);
 

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { TripProvider } from './store';
-import { Layout } from './components/Layout';
-import { Dashboard } from './components/Dashboard';
-import { TripDetail } from './components/TripDetail';
-import { Budget } from './components/Budget';
-import { Toolbox } from './components/Toolbox';
+import { Layout } from './Layout';
+import { Dashboard } from './Dashboard';
+import { TripDetail } from './TripDetail';
+import { Budget } from './Budget';
+import { Toolbox } from './Toolbox';
 
 type View = 'dashboard' | 'itinerary' | 'budget' | 'toolbox';
 
